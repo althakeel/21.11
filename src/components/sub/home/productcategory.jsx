@@ -26,6 +26,7 @@ import Product6 from '../../../assets/images/staticproducts/Peeler/1.webp'
 
 const PAGE_SIZE = 10;
 const INITIAL_VISIBLE = 24;
+const QUICK_LOAD_COUNT = 10; // Load 10 products quickly first
 const PRODUCT_FETCH_LIMIT = 24;
 const RECOMMENDED_CATEGORY_LIMIT = 8;
 const CATEGORY_PAGE_LIMIT = 4;
@@ -211,23 +212,24 @@ const staticPositions = [2,5, 11, 15, 19, 24,28, 32, 39,22,];
 
 // In-memory cache for API products by category
 const apiProductCache = {};
+// Track clicked products to prioritize them
+const clickedProductIds = new Set();
 
 const ProductCategory = () => {
   // Static category list (name, id)
   const staticCategories = [
     { name: 'Recommended', id: 29688 },
-    { name: 'Electronics & Smart', id: 498 },
+    { name: 'Electronics & Smart Devices', id: 498 },
     { name: 'Beauty & Personal Care', id: 6526 },
     { name: 'Baby, Kids & Maternity', id: 6528 },
     { name: 'Automotive & Motorcycle', id: 6531 },
-    { name: 'Women’s Clothing', id: 6523 },
+    { name: 'Women\'s Clothing', id: 6523 },
     { name: 'Shoes & Footwear', id: 6527 },
     { name: 'Pet Supplies', id: 6533 },
-    { name: 'Men’s Clothing', id: 6522 },
+    { name: 'Men\'s Clothing', id: 6522 },
     { name: 'Lingerie & Loungewear', id: 6524 },
     { name: 'Home Improvement & Tools', id: 6520 },
     { name: 'Home Appliances', id: 6519 },
-    { name: 'Electronics & Smart Devices', id: 498 },
   ];
   const { addToCart, cartItems } = useCart();
   const location = useLocation();
@@ -251,6 +253,7 @@ const ProductCategory = () => {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [showingStaticOnly, setShowingStaticOnly] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false); // Track if first batch loaded
   // No need for apiLoaded state anymore
   // For 'Recommended', hasMoreProducts should consider both API and static products
   const getTotalProducts = () => {
@@ -283,48 +286,121 @@ const [categoryHasMore, setCategoryHasMore] = useState(true);
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch products
-  // Fetch only id and images for initial grid
+  // Fetch products with progressive loading
+  // Stage 1: Fetch 10 products quickly with minimal fields
+  // Stage 2: Fetch remaining products in background
   const fetchProducts = useCallback(async (categoryId) => {
+    console.log('🔍 Fetching products for category ID:', categoryId);
     setVisibleCount(INITIAL_VISIBLE);
     setLoadingProducts(true);
-    // If cached, use cache instantly
+    setInitialLoadComplete(false); // Reset initial load state
+    
+    // If cached, use cache instantly and prioritize clicked products
     if (apiProductCache[categoryId]) {
-      setAllProducts(apiProductCache[categoryId]);
+      console.log('✅ Using cached products:', apiProductCache[categoryId].length);
+      const cached = apiProductCache[categoryId];
+      
+      // Move clicked products to top
+      const clickedProducts = cached.filter(p => clickedProductIds.has(p.id));
+      const unclickedProducts = cached.filter(p => !clickedProductIds.has(p.id));
+      const reordered = [...clickedProducts, ...unclickedProducts];
+      
+      setAllProducts(reordered);
       setLoadingProducts(false);
       setShowingStaticOnly(false);
+      setInitialLoadComplete(true); // Mark as complete
       return;
     }
+    
     // Show static products instantly while API loads
     setAllProducts([]);
     setShowingStaticOnly(true);
+    
     try {
-      let fetchedProducts = [];
-      let page = 1;
-      while (true) {
-        const res = await fetch(
-          `${API_BASE}/products?consumer_key=${CONSUMER_KEY}&consumer_secret=${CONSUMER_SECRET}&per_page=${PRODUCT_FETCH_LIMIT}&page=${page}&category=${categoryId}&_fields=id,name,price,regular_price,sale_price,images,categories,slug`
-        );
-        const data = await res.json();
-        if (!Array.isArray(data) || !data.length) break;
-        fetchedProducts.push(...data);
-        if (data.length < PRODUCT_FETCH_LIMIT) break; // Last page
-        page++;
-        if (fetchedProducts.length >= MAX_PRODUCTS) break;
-      }
-      fetchedProducts = fetchedProducts.slice(0, MAX_PRODUCTS);
-      if (fetchedProducts.length > 0) {
-        const shuffled = shuffleArray(fetchedProducts);
-        apiProductCache[categoryId] = shuffled;
-        setAllProducts(shuffled);
+      // Stage 1: Quick load first 10 products with minimal fields
+      const quickUrl = `${API_BASE}/products?consumer_key=${CONSUMER_KEY}&consumer_secret=${CONSUMER_SECRET}&per_page=${QUICK_LOAD_COUNT}&page=1&category=${categoryId}&_fields=id,name,price,regular_price,sale_price,images,slug`;
+      console.log(`⚡ Quick loading first ${QUICK_LOAD_COUNT} products...`);
+      
+      const quickRes = await fetch(quickUrl);
+      const quickData = await quickRes.json();
+      
+      if (Array.isArray(quickData) && quickData.length > 0) {
+        console.log(`✅ Quick loaded ${quickData.length} products`);
+        
+        // Filter out products without images or with 0 price
+        const validQuickData = quickData.filter(p => {
+          const hasImage = p.images && p.images.length > 0 && p.images[0]?.src;
+          const hasPrice = p.price && parseFloat(p.price) > 0;
+          const hasSalePrice = !p.sale_price || parseFloat(p.sale_price) > 0;
+          return hasImage && hasPrice && hasSalePrice;
+        });
+        
+        setAllProducts(validQuickData);
+        setLoadingProducts(false);
+        setShowingStaticOnly(false);
+        setInitialLoadComplete(true); // Mark initial load as complete - no more blinking
+        
+        // Stage 2: Load remaining products in background
+        setTimeout(async () => {
+          try {
+            let page = 2; // Start from page 2
+            
+            // Fetch pages and update UI every 5 products for progressive loading
+            while (true) {
+              const url = `${API_BASE}/products?consumer_key=${CONSUMER_KEY}&consumer_secret=${CONSUMER_SECRET}&per_page=${PRODUCT_FETCH_LIMIT}&page=${page}&category=${categoryId}&_fields=id,name,price,regular_price,sale_price,images,categories,slug`;
+              console.log(`📡 Background fetching page ${page}...`);
+              
+              const res = await fetch(url);
+              const data = await res.json();
+              
+              if (!Array.isArray(data) || !data.length) {
+                console.log('⚠️ No more products found');
+                break;
+              }
+              
+              console.log(`✅ Fetched page ${page}, products: ${data.length}`);
+              
+              // Filter valid products from this page
+              const validPageProducts = data.filter(p => {
+                const hasImage = p.images && p.images.length > 0 && p.images[0]?.src;
+                const hasPrice = p.price && parseFloat(p.price) > 0;
+                const hasSalePrice = !p.sale_price || parseFloat(p.sale_price) > 0;
+                return hasImage && hasPrice && hasSalePrice;
+              });
+              
+              // Get current products and append new ones
+              setAllProducts(prev => {
+                const combined = [...prev, ...validPageProducts];
+                const limited = combined.slice(0, MAX_PRODUCTS);
+                apiProductCache[categoryId] = limited;
+                return limited;
+              });
+              
+              if (data.length < PRODUCT_FETCH_LIMIT) break;
+              page++;
+              
+              // Check if we've reached max
+              if (apiProductCache[categoryId]?.length >= MAX_PRODUCTS) break;
+              
+              // Small delay between batches for smooth UX
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            
+            console.log('🎯 Background loading complete:', apiProductCache[categoryId]?.length || 0);
+          } catch (bgErr) {
+            console.error('❌ Background fetch error:', bgErr);
+          }
+        }, 100);
       } else {
+        console.log('❌ No products found for category:', categoryId);
         apiProductCache[categoryId] = [];
         setAllProducts([]);
+        setLoadingProducts(false);
+        setShowingStaticOnly(false);
       }
     } catch (err) {
-      console.error(err);
+      console.error('❌ Error fetching products:', err);
       setAllProducts([]);
-    } finally {
       setLoadingProducts(false);
       setShowingStaticOnly(false);
     }
@@ -395,6 +471,9 @@ const [categoryHasMore, setCategoryHasMore] = useState(true);
 const [loadingProductId, setLoadingProductId] = useState(null);
 const [productDetails, setProductDetails] = useState({});
 const handleProductClick = async (product) => {
+  // Track clicked product to show it on top next time
+  clickedProductIds.add(product.id);
+  
   if (product.isStatic) {
     navigate(product.path || `/products/${product.slug}`);
     window.scrollTo(0, 0);
@@ -412,6 +491,10 @@ const getMergedProducts = () => {
     Array.isArray(p.categories) && p.categories.includes(Number(selectedCategoryId))
   ).map(p => ({ ...p, isStatic: true }));
 
+  console.log('🔧 Selected Category ID:', selectedCategoryId);
+  console.log('📊 API Products:', allProducts.length);
+  console.log('🎨 Static Products for this category:', staticForCategory.length);
+
   // For Recommended, use staticPositions to interleave, else just append static products
   if (selectedCategoryId === "29688") {
     const merged = [...allProducts];
@@ -421,10 +504,13 @@ const getMergedProducts = () => {
         merged.splice(insertPos, 0, staticForCategory[i]);
       }
     });
+    console.log('✅ Merged Products (Recommended):', merged.length);
     return merged;
   } else {
     // For other categories, append static products at the end
-    return [...allProducts, ...staticForCategory];
+    const merged = [...allProducts, ...staticForCategory];
+    console.log('✅ Merged Products (Other):', merged.length);
+    return merged;
   }
 };
 
@@ -678,22 +764,20 @@ useEffect(() => {
 
         {/* Products */}
         {(() => {
-          // Show static products instantly while API loads
+          // Show static products instantly while API loads (only if initial load not complete)
           let productsToShow = [];
-          if (showingStaticOnly) {
+          if (showingStaticOnly && !initialLoadComplete) {
             // Only static products for this category, then skeletons for API loading
             const staticForCategory = staticProducts.filter(p =>
               Array.isArray(p.categories) && p.categories.includes(Number(selectedCategoryId))
             ).map(p => ({ ...p, isStatic: true }));
             if (staticForCategory.length === 0) {
-              return (
-                <div className="pcus-no-products" style={{ minHeight: "300px", textAlign: "center", paddingTop: "40px", fontSize: "18px", color: "#666" }}>
-                  No products found.
-                </div>
-              );
+              // Show skeletons while loading
+              const skeletons = Array(10).fill(0).map((_, idx) => <SkeletonCard key={"skel-"+idx} />);
+              return <div className="pcus-prd-grid001">{skeletons}</div>;
             }
-            // Show 6 skeletons after static products
-            const skeletons = Array(6).fill(0).map((_, idx) => <SkeletonCard key={"skel-"+idx} />);
+            // Show static products with few skeletons
+            const skeletons = Array(4).fill(0).map((_, idx) => <SkeletonCard key={"skel-"+idx} />);
             return (
               <div className="pcus-prd-grid001">
                 {renderProducts(staticForCategory)}
@@ -701,9 +785,9 @@ useEffect(() => {
               </div>
             );
           }
-          // After API loaded, show merged API + static products for all categories
+          // After initial load complete, show products without blinking
           productsToShow = getMergedProducts();
-          if (productsToShow.length === 0) {
+          if (productsToShow.length === 0 && initialLoadComplete) {
             return (
               <div className="pcus-no-products" style={{ minHeight: "300px", textAlign: "center", paddingTop: "40px", fontSize: "18px", color: "#666" }}>
                 No products found.
