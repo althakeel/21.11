@@ -1260,13 +1260,13 @@ const staticProducts = [
 
   {
     id: 523106,
-    name: "Cordless 2-in-1 Leaf Blower & Vacuum",
+    name: "Cordless 2-in-1 Leaf Blower",
     slug: "cordless-2-in-1-leaf-blower-vacuum",
     price: 55.9,
     description:
       "17000 RPM |Single Battery Powered | Wireless | Lightweight & Portable",
-    shortdesc: "Blow, Vacuum, and Clean — All with One Tool",
-    subdesc: " 2-in-1 Blower & Vacuum function",
+    shortdesc: "Blow and Clean — All with One Tool",
+    subdesc: " 2-in-1 Blower",
     subdesc1: " Up to 17000 RPM turbo power",
     subdesc2: "Lightweight (1.5kg) and ergonomic",
     subdesc3: " Long battery life (up to 40 minutes)",
@@ -1289,7 +1289,7 @@ const staticProducts = [
       {
         type: "Buy 1",
         id: 523404,
-        name: "Cordless 2-in-1 Leaf Blower & Vacuum",
+        name: "Cordless 2-in-1 Leaf Blower",
         label: "Buy 1 for Only 69.9 AED",
         discount: 0,
         price: 55.9,
@@ -1299,7 +1299,7 @@ const staticProducts = [
       {
         type: "Bundle of 2",
         id: 523417,
-        name: "Cordless 2-in-1 Leaf Blower & Vacuum",
+        name: "Cordless 2-in-1 Leaf Blower",
         label: "Buy 2 & Get 15% Off",
         discount: 15,
         price: 95, // 15% off on 2 items
@@ -1311,7 +1311,7 @@ const staticProducts = [
       {
         type: "Bundle of 3",
         id: 523418,
-        name: "Cordless 2-in-1 Leaf Blower & Vacuum",
+        name: "Cordless 2-in-1 Leaf Blower ",
         label: "Buy 3 & Get 25% Off",
         discount: 25,
         price: 125, // 25% off on 3 items
@@ -1343,7 +1343,7 @@ const staticProducts = [
     section3points: [
       "Home & Garage Cleaning",
       "Lawn, Patio, and Garden Leaves",
-      "  Car Engine Dust & Interior Vacuuming",
+      "  Car Engine Dust & Interior Cleaning",
       "  Pet Hair & Light Debris Removal",
     ],
 
@@ -1362,7 +1362,7 @@ const staticProducts = [
       headers: ["Feature", "Our Leaf Blower™", "Others"],
       rows: [
         {
-          feature: "2-in-1 Blower & Vacuum Design",
+          feature: "2-in-1 Blower",
           lumineux: true,
           others: false,
         },
@@ -1387,9 +1387,9 @@ const staticProducts = [
     Faq1Q: " How long does the battery last?",
     fAQ1A:
       "Each charge provides up to 40 minutes of continuous use in high-speed mode.",
-    Faq2Q: "  Can it vacuum pet hair and dust?",
+    Faq2Q: "  Can it clean pet hair and dust?",
     fAQ2A:
-      "Yes! The vacuum mode is perfect for pet hair, dust, and car interiors.",
+      "Yes! The blower mode is perfect for pet hair, dust, and car interiors.",
     Faq3Q: " Is it suitable for outdoor use?",
     fAQ3A: " Absolutely – great for driveways, gardens, patios, and parks.",
 
@@ -1402,7 +1402,7 @@ const staticProducts = [
         stars: 5,
       },
       {
-        text: "Love the vacuum function. Cleans pet hair from sofa and car in minutes.",
+        text: "Love the blower function. Cleans pet hair from sofa and car in minutes.",
         author: "Fatima A., Sharjah",
         stars: 5,
       },
