@@ -1273,7 +1273,7 @@ const staticProducts = [
     subdesc4: " Perfect for lawns, garages, cars, and patios",
 
     image: Product92,
-    // thumb1: Product43,
+  
     thumb2: Product91,
     thumb3: Product93,
     thumb4: Product94,
